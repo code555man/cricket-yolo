@@ -1,8 +1,8 @@
 
-cricket - v4 2024-07-14 1:53pm
+cricket123 - v4 2024-07-16 4:22am
 ==============================
 
-This dataset was exported via roboflow.com on July 14, 2024 at 1:55 PM GMT
+This dataset was exported via roboflow.com on July 16, 2024 at 4:24 AM GMT
 
 Roboflow is an end-to-end computer vision platform that helps you
 * collaborate with your team on computer vision projects
@@ -18,7 +18,7 @@ visit https://github.com/roboflow/notebooks
 To find over 100k other datasets and pre-trained models, visit https://universe.roboflow.com
 
 The dataset includes 18 images.
-Animal are annotated in YOLO v7 PyTorch format.
+Cricket123 are annotated in YOLO v7 PyTorch format.
 
 The following pre-processing was applied to each image:
 * Auto-orientation of pixel data (with EXIF-orientation stripping)
