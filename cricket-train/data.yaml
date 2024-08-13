@@ -3,11 +3,11 @@ val: /content/cricket-yolo/cricket-train/train/images
 test: /content/cricket-yolo/cricket-train/train/images
 
 nc: 2
-names: ['cricket egg', 'crirket123']
+names: ['cricket egg', 'crircket normal']
 
 roboflow:
   workspace: milluki
   project: cricket123
-  version: 4
+  version: 1
   license: CC BY 4.0
-  url: https://universe.roboflow.com/milluki/cricket123/dataset/4
+  url: https://universe.roboflow.com/milluki/cricket123/dataset/1
