@@ -6,6 +6,7 @@ import cv2
 import torch
 import torch.backends.cudnn as cudnn
 from numpy import random
+from collections import Counter, defaultdict
 
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
@@ -14,8 +15,18 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
 
+def calculate_precision(tp_counts, fp_counts):
+    total_tp = tp_counts  # Convert defaultdict to int
+    total_fp = fp_counts  # Convert defaultdict to int
+    
+    if (total_tp + total_fp) == 0:
+        return 0
+    
+    precision = total_tp / (total_tp + total_fp)
+    return precision
 
 def detect(save_img=False):
+    
     source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
@@ -34,6 +45,8 @@ def detect(save_img=False):
     model = attempt_load(weights, map_location=device)  # load FP32 model
     stride = int(model.stride.max())  # model stride
     imgsz = check_img_size(imgsz, s=stride)  # check img_size
+    true_positives = 0
+    false_positives = 0
 
     if trace:
         model = TracedModel(model, device, opt.img_size)
@@ -58,7 +71,6 @@ def detect(save_img=False):
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
 
     # Run inference
     if device.type != 'cpu':
@@ -67,6 +79,9 @@ def detect(save_img=False):
     old_img_b = 1
 
     t0 = time.time()
+    tp_counts = defaultdict(int)
+    fp_counts = defaultdict(int)
+    
     for path, img, im0s, vid_cap in dataset:
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -91,6 +106,10 @@ def detect(save_img=False):
         # Apply NMS
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
+        
+        # สร้างค่าตัวนับ TP และ FP
+        true_positives = 0
+        false_positives = 0
 
         # Apply Classifier
         if classify:
@@ -98,6 +117,9 @@ def detect(save_img=False):
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
+            
+            im0 = im0s[i].copy()
+            
             if webcam:  # batch_size >= 1
                 p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(), dataset.count
             else:
@@ -107,26 +129,81 @@ def detect(save_img=False):
             save_path = str(save_dir / p.name)  # img.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            
             if len(det):
+                class_counts = Counter()
+                num_detections = len(det)  # นับจำนวน bounding boxes ที่ตรวจจับได้
+
+                # วาดจำนวนผลลัพธ์บนภาพ
+                label = f'Detections: {num_detections}'
+                cv2.putText(im0, label, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
-                # Print results
-                for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
-
-                # Write results
                 for *xyxy, conf, cls in reversed(det):
-                    if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
-                        with open(txt_path + '.txt', 'a') as f:
-                            f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
-                    if save_img or view_img:  # Add bbox to image
-                        label = f'{names[int(cls)]} {conf:.2f}'
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+                  class_name = names[int(cls)]
+                  class_counts[class_name] += 1  # นับแต่ละประเภท
+
+                  label = f'{class_name} {conf:.2f}'
+
+                  # สมมติว่าความมั่นใจ (confidence) > 0.3 เป็น True Positive (TP)
+                  # และ < 0.3 เป็น False Positive (FP)
+                  if conf > 0.3:
+                      true_positives += 1
+                  else:
+                      false_positives += 1
+
+                  color = (255, 0, 0)  # สีเขียวเป็นค่าเริ่มต้น
+                  if class_name == 'no egg':
+                      color = (0, 0, 255)  # สีแดง
+                  elif class_name == 'egg':
+                      color = (0, 255, 0)  # สีเขียว
+
+                  plot_one_box(xyxy, im0, label=label, color=color, line_thickness=3)
+
+                # คำนวณจำนวนวัตถุทั้งหมด
+                total_detections = sum(class_counts.values())
+
+                detection_info = ""
+                # สร้างข้อความที่รวมจำนวนและเปอร์เซ็นต์ของวัตถุทุกประเภทในบรรทัดเดียว
+                for class_name, count in class_counts.items():
+                    percentage = (count / total_detections) * 100
+                    detection_info += f'{class_name}: {count} ({percentage:.2f}%)  '
+
+                # ลบช่องว่างท้ายสุด
+                detection_info = detection_info.strip()
+
+                # คำนวณเปอร์เซ็นต์ความแม่นยำ
+                # precision = calculate_precision(true_positives, false_positives)
+
+                tp_counts = 50 -  true_positives 
+                fp_counts = 50 -  false_positives
+
+                total_tp =  true_positives + false_positives
+                total_fp = tp_counts + fp_counts
+
+                precision = calculate_precision(total_tp, total_fp)
+
+                # แสดงความแม่นยำในภาพ
+                precision_text = f'Precision: {precision * 100:.2f}%'
+
+                # ขนาดภาพ (h: ความสูง, w: ความกว้าง)
+                h, w, _ = im0.shape
+
+                # คำนวณตำแหน่งกลางของข้อความทั้งหมด
+                text_size = cv2.getTextSize(detection_info, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+                text_x = (w - text_size[0]) // 2  # กำหนดให้ข้อความอยู่ตรงกลางภาพ
+
+                text_size_right = cv2.getTextSize(precision_text, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+                text_x_right = w - text_size_right[0] - 10  # ตำแหน่ง x ชิดขวา 10 พิกเซลจากขอบภาพ
+                text_y_right = 50  # ตำแหน่ง y ที่ด้านบนของภาพ
+
+                # วางข้อความเปอร์เซ็นต์ความแม่นยำที่ด้านขวาของภาพ
+                cv2.putText(im0, precision_text, (text_x_right, text_y_right), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+                
+               # วางข้อความตรงกลางของภาพ
+                cv2.putText(im0, detection_info, (text_x, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
 
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
@@ -157,9 +234,7 @@ def detect(save_img=False):
                     vid_writer.write(im0)
 
     if save_txt or save_img:
-        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-        #print(f"Results saved to {save_dir}{s}")
-
+      s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
     print(f'Done. ({time.time() - t0:.3f}s)')
 
 
@@ -185,7 +260,6 @@ if __name__ == '__main__':
     parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
     opt = parser.parse_args()
     print(opt)
-    #check_requirements(exclude=('pycocotools', 'thop'))
 
     with torch.no_grad():
         if opt.update:  # update all models (to fix SourceChangeWarning)
