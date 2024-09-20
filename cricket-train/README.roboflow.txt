@@ -1,8 +1,8 @@
 
-ssssss 2 - v4 2024-09-15 9:17am
+xoat - v5 2024-09-20 1:34pm
 ==============================
 
-This dataset was exported via roboflow.com on September 15, 2024 at 9:20 AM GMT
+This dataset was exported via roboflow.com on September 20, 2024 at 1:36 PM GMT
 
 Roboflow is an end-to-end computer vision platform that helps you
 * collaborate with your team on computer vision projects
@@ -17,8 +17,8 @@ visit https://github.com/roboflow/notebooks
 
 To find over 100k other datasets and pre-trained models, visit https://universe.roboflow.com
 
-The dataset includes 36 images.
-Sssssss-1IvV are annotated in YOLO v7 PyTorch format.
+The dataset includes 28 images.
+Sssssss-8A2h are annotated in YOLO v7 PyTorch format.
 
 The following pre-processing was applied to each image:
 * Auto-orientation of pixel data (with EXIF-orientation stripping)

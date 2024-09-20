@@ -1,13 +1,13 @@
 train: /content/cricket-yolo/cricket-train/train/images
-val: /content/cricket-yolo/cricket-train/train/images
+val: /content/cricket-yolo/cricket-train/valid/images
 test: /content/cricket-yolo/cricket-train/train/images
 
 nc: 2
-names: ['egg', 'no egg']
+names: ['egg', 'no']
 
 roboflow:
   workspace: milluki
-  project: ssssss-2
-  version: 4
+  project: xoat
+  version: 5
   license: CC BY 4.0
-  url: https://universe.roboflow.com/milluki/ssssss-2/dataset/4
+  url: https://universe.roboflow.com/milluki/xoat/dataset/5
