@@ -1,1 +1,1 @@
-# cricket-yolo
+# cricket-yolo v7
